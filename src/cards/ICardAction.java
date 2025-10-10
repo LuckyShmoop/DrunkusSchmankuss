@@ -1,12 +1,16 @@
 package cards;
 
-import player.Player; // Importiert die Basisklasse aus dem Player-Package
+import player.Player;
+import java.util.List;
+import java.util.Scanner;
 
 public interface ICardAction {
 
-    // Führt die spezifische Karten-Logik auf dem Zielspieler aus
-    void execute(Player target);
-
-    // Optional: Könnte auch das gesamte Spiel beeinflussen (z.B. indem es den Controller erhält)
-    // void execute(Player target, game.GameController controller); 
+    /**
+     * Führt die Karten-Logik aus.
+     * @param cardPlayer Der Spieler, der die Karte ausspielt.
+     * @param allPlayers Eine Liste aller Spieler im Spiel, um Ziele auswählen zu können.
+     * @param scanner Ein Scanner-Objekt, um die Benutzereingabe für die Zielauswahl zu lesen.
+     */
+    void execute(Player cardPlayer, List<Player> allPlayers, Scanner scanner);
 }

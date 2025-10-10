@@ -1,10 +1,10 @@
 package cards;
 
+// Eine Strafkarte ist einfach eine Karte, die sofort ausgeführt wird.
+// Die Logik dafür liegt im GameController. Die Klasse selbst braucht nichts Besonderes.
 public class PunishCard extends Card {
 
-    // ... Konstruktor, der ICardAction entgegennimmt ...
-
-    public PunishCard(String title, ICardAction action) {
-        super(title, action);
+    public PunishCard(String title, String description, Rarity rarity, ICardAction action) {
+        super(title, description, rarity, action);
     }
 }
