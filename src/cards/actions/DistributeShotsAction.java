@@ -1,12 +1,16 @@
 package cards.actions;
 
 import cards.ICardAction;
+import game.ConsoleView;
 import player.Player;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
+/**
+ * Eine interaktive Aktion, die den Spieler eine feste Anzahl an Shots
+ * auf einen oder mehrere Mitspieler verteilen lässt.
+ */
 public class DistributeShotsAction implements ICardAction {
 
     private final int totalAmount;
@@ -16,52 +20,33 @@ public class DistributeShotsAction implements ICardAction {
     }
 
     @Override
-    public void execute(Player cardPlayer, List<Player> allPlayers, Scanner scanner) {
-        // Erstelle eine Liste von möglichen Zielen (alle außer dem Spieler selbst)
+    public void execute(Player cardPlayer, List<Player> allPlayers, ConsoleView view) {
         List<Player> targets = new ArrayList<>(allPlayers);
         targets.remove(cardPlayer);
 
         if (targets.isEmpty()) {
-            System.out.println("Keine anderen Spieler da, um Schlucke zu verteilen.");
+            view.displayMessage("Keine anderen Spieler da, um Shots zu verteilen.");
             return;
         }
 
         int amountLeft = this.totalAmount;
-        System.out.println(cardPlayer.getName() + ", du kannst " + amountLeft + " Schlucke verteilen.");
+        view.displayMessage(cardPlayer.getName() + ", du kannst " + amountLeft + " Shot(s) verteilen.");
 
         while (amountLeft > 0) {
-            System.out.println("Noch zu verteilen: " + amountLeft);
+            view.displayMessage("Noch zu verteilen: " + amountLeft);
 
-            // Ziele anzeigen
-            for (int i = 0; i < targets.size(); i++) {
-                System.out.println((i + 1) + ": " + targets.get(i).getName());
-            }
+            // Die View kümmert sich um die Auswahl des Spielers
+            Player selectedTarget = view.askForPlayerSelection(targets, "Wähle einen Spieler:");
 
-            // Ziel auswählen
-            int targetChoice = -1;
-            while (targetChoice < 1 || targetChoice > targets.size()) {
-                System.out.print("Wähle einen Spieler (1-" + targets.size() + "): ");
-                try {
-                    targetChoice = Integer.parseInt(scanner.nextLine());
-                } catch (NumberFormatException e) { /* Ignorieren und neu versuchen */ }
-            }
-            Player selectedTarget = targets.get(targetChoice - 1);
+            // Die View kümmert sich um die Auswahl der Menge
+            String prompt = "Wie viele Shots für " + selectedTarget.getName() + " (1-" + amountLeft + "): ";
+            int amountToGive = view.askForIntegerInRange(prompt, 1, amountLeft);
 
-            // Menge auswählen
-            int amountToGive = 0;
-            while (amountToGive <= 0 || amountToGive > amountLeft) {
-                System.out.print("Wie viele Schlucke für " + selectedTarget.getName() + " (1-" + amountLeft + "): ");
-                try {
-                    amountToGive = Integer.parseInt(scanner.nextLine());
-                } catch (NumberFormatException e) { /* Ignorieren und neu versuchen */ }
-            }
-
-            // Aktion ausführen und Zähler aktualisieren
-            System.out.println(selectedTarget.getName() + " erhält " + amountToGive + " Schlucke.");
-            selectedTarget.takeSwallow(amountToGive);
+            view.displayMessage(selectedTarget.getName() + " erhält " + amountToGive + " Shot(s).");
+            // Hier wird die korrekte Methode für Shots aufgerufen
+            selectedTarget.takeShot(amountToGive);
             amountLeft -= amountToGive;
         }
-
-        System.out.println("Alle Schlucke wurden verteilt!");
+        view.displayMessage("Alle Shots wurden verteilt!");
     }
 }

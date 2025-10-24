@@ -1,16 +1,15 @@
 package cards;
 
+import game.ConsoleView; // Wichtig: importieren
 import player.Player;
 import java.util.List;
-import java.util.Scanner;
 
 public interface ICardAction {
-
     /**
      * Führt die Karten-Logik aus.
      * @param cardPlayer Der Spieler, der die Karte ausspielt.
-     * @param allPlayers Eine Liste aller Spieler im Spiel, um Ziele auswählen zu können.
-     * @param scanner Ein Scanner-Objekt, um die Benutzereingabe für die Zielauswahl zu lesen.
+     * @param allPlayers Eine Liste aller Spieler im Spiel.
+     * @param view Die View, um mit dem Benutzer zu interagieren (z.B. Ziele auswählen).
      */
-    void execute(Player cardPlayer, List<Player> allPlayers, Scanner scanner);
+    void execute(Player cardPlayer, List<Player> allPlayers, ConsoleView view);
 }

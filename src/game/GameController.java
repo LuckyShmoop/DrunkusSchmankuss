@@ -1,29 +1,31 @@
 package game;
 
-import cards.Card;
-import cards.Deck;
-import cards.PunishCard;
+import cards.*;
 import player.*;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 import java.util.function.Function;
 
+/**
+ * Das Gehirn des Spiels. Diese Klasse enthält die gesamte Spiellogik und den Ablauf,
+ * ist aber komplett von der Benutzeroberfläche (View) entkoppelt.
+ */
 public class GameController {
+    // Der Controller kennt nur noch die Logik-Komponenten
     private List<Player> participants = new ArrayList<>();
-    private Scanner scanner = new Scanner(System.in);
-    private int roundCounter = 0;
     private Deck gameDeck;
+    private int roundCounter = 0;
 
-    private static final Map<String, Function<String, Player>> CLASS_CREATORS;
+    // ... und die View für die Darstellung.
+    private final ConsoleView view;
 
-    static {
-        CLASS_CREATORS = Map.of(
-                "1", Warrior::new, "2", Ranger::new,
-                "3", Sorcerer::new, "4", Rogue::new
-        );
+    private static final Map<String, Function<String, Player>> CLASS_CREATORS = Map.of(
+            "1", Warrior::new, "2", Ranger::new,
+            "3", Sorcerer::new, "4", Rogue::new
+    );
+
+    // Die View wird von außen übergeben (Dependency Injection)
+    public GameController(ConsoleView view) {
+        this.view = view;
     }
 
     /**
@@ -32,29 +34,19 @@ public class GameController {
     public void run() {
         boolean playAgain;
         do {
-            // Spielzustand für eine neue Partie zurücksetzen
             resetGame();
-            // Neues Spiel einrichten
             setupGame();
 
-            // Die Spiel-Schleife für die aktuelle Partie
             while (!isGameOver()) {
                 processRound();
-                // Breche ab, wenn die Runde das Spiel beendet hat (z.B. durch zu wenige Spieler)
                 if (isGameOver()) break;
             }
 
-            // Gewinner/Verlierer bekannt geben
-            announceWinner();
-
-            // Fragen, ob eine neue Partie gestartet werden soll
-            System.out.println("\nMöchtet ihr eine neue Runde spielen? (ja/nein)");
-            String choice = scanner.nextLine().toLowerCase();
-            playAgain = choice.equals("ja") || choice.equals("y");
-
+            announceResult();
+            playAgain = view.askForYesNo("\nMöchtet ihr eine neue Runde spielen? (ja/nein)");
         } while (playAgain);
 
-        System.out.println("\nDanke fürs Spielen! Bis zum nächsten Mal.");
+        view.displayMessage("\nDanke fürs Spielen! Bis zum nächsten Mal.");
     }
 
     /**
@@ -66,48 +58,45 @@ public class GameController {
     }
 
     /**
-     * Fragt die Spieleranzahl, Namen und Klassen ab und gibt jedem Spieler 3 Startkarten.
+     * Führt das Setup für eine neue Partie durch (Spielererstellung, Starthände).
      */
-    public void setupGame() {
-        this.gameDeck = new Deck(); // Für jede neue Partie ein frisches Deck
-        System.out.println("\n--- Neues Spiel: Spieler erstellen ---");
-        System.out.println("--- Wie viele Spieler seid ihr? ---");
-        int amountPlayer = 0;
-        while (amountPlayer <= 0) {
-            try {
-                String input = scanner.nextLine();
-                if (input.trim().isEmpty()) continue;
-                amountPlayer = Integer.parseInt(input);
-                if (amountPlayer <= 0) System.out.println("Bitte eine positive Zahl eingeben.");
-            } catch (NumberFormatException e) { System.out.println("Ungültige Eingabe. Bitte eine Zahl eingeben."); }
-        }
+    private void setupGame() {
+        this.gameDeck = new Deck();
+        view.displayMessage("\n--- Neues Spiel: Spieler erstellen ---");
+        int amountPlayer = view.askForInteger("Wie viele Spieler seid ihr?: ");
+
         for (int i = 1; i <= amountPlayer; i++) {
-            System.out.println("\nSpieler " + i + ": Bitte Namen eingeben:");
-            String name = scanner.nextLine();
-            displayClassOptions();
+            String name = view.askForString("\nSpieler " + i + ": Bitte Namen eingeben: ");
+            view.displayMessage("Wähle deine Klasse:\n1. Warrior\n2. Ranger\n3. Sorcerer\n4. Rogue");
+
             Player newPlayer = null;
             while (newPlayer == null) {
-                System.out.print("Deine Wahl (1-4): ");
-                String choice = scanner.nextLine();
+                String choice = view.askForString("Deine Wahl (1-4): ");
                 Function<String, Player> creator = CLASS_CREATORS.get(choice);
                 if (creator != null) {
                     newPlayer = creator.apply(name);
-                } else { System.out.println("Ungültige Wahl. Bitte wähle eine Zahl zwischen 1 und 4."); }
+                } else {
+                    view.displayMessage("Ungültige Wahl.");
+                }
             }
             participants.add(newPlayer);
-            System.out.println(newPlayer.getName() + " ist beigetreten als " + newPlayer.getClass().getSimpleName() + "!");
-            System.out.println(newPlayer.getName() + " zieht 3 Startkarten...");
-            for (int j = 0; j < 3; j++) {
-                Card drawnCard;
-                do {
-                    drawnCard = gameDeck.drawCard();
-                    if (drawnCard instanceof PunishCard) gameDeck.discard(drawnCard);
-                } while (drawnCard instanceof PunishCard);
-                newPlayer.addCardToHand(drawnCard);
+            view.displayMessage(newPlayer.getName() + " ist beigetreten als " + newPlayer.getClass().getSimpleName() + "!");
+
+            for (int j = 0; j < GameConstants.START_HAND_SIZE; j++) {
+                drawStartCardFor(newPlayer);
             }
-            System.out.println(newPlayer.getName() + " hat seine Starthand erhalten.");
         }
-        System.out.println("\nAlle " + participants.size() + " Spieler sind erstellt und bereit!");
+    }
+
+    private void drawStartCardFor(Player player) {
+        Card drawnCard;
+        do {
+            drawnCard = gameDeck.drawCard();
+            if (drawnCard instanceof PunishCard) {
+                gameDeck.discard(drawnCard);
+            }
+        } while (drawnCard instanceof PunishCard);
+        player.addCardToHand(drawnCard);
     }
 
     /**
@@ -115,140 +104,119 @@ public class GameController {
      */
     public void processRound() {
         roundCounter++;
-        System.out.println("\n=============================================");
-        System.out.println("--- Runde " + roundCounter + " startet! ---");
-        System.out.println("=============================================");
+        view.displayMessage("\n=============================================");
+        view.displayMessage("--- Runde " + roundCounter + " startet! ---");
+        view.displayMessage("=============================================");
 
-        // Würfelphase
-        System.out.println("\n--- Reihenfolge wird ausgewürfelt ---");
-        List<Player> roundPlayerOrder = new ArrayList<>(this.participants);
-        java.util.Map<Player, Integer> playerRolls = new java.util.HashMap<>();
-        java.util.Random random = new java.util.Random();
-        for (Player player : roundPlayerOrder) {
-            int roll = random.nextInt(100) + 1;
-            playerRolls.put(player, roll);
-            System.out.println(player.getName() + " würfelt eine " + roll + ".");
-        }
-        java.util.Collections.shuffle(roundPlayerOrder);
-        roundPlayerOrder.sort(java.util.Comparator.comparingInt(playerRolls::get));
-        System.out.println("\nDie Spielerreihenfolge für diese Runde ist:");
-        for (int i = 0; i < roundPlayerOrder.size(); i++) {
-            System.out.println((i + 1) + ". " + roundPlayerOrder.get(i).getName());
-        }
+        List<Player> roundPlayerOrder = determinePlayerOrder();
 
         // Phase 1: Karten ziehen
-        System.out.println("\n--- Phase 1: Karten ziehen ---");
         for (Player player : roundPlayerOrder) {
+            view.displayMessage("\n" + player.getName() + " zieht eine Karte.");
             Card drawnCard = gameDeck.drawCard();
             if (drawnCard == null) return;
-            System.out.println("\n" + player.getName() + " zieht: " + drawnCard);
+
+            view.displayMessage(">>> [Private Info für " + player.getName() + "] Du hast gezogen: " + drawnCard);
+
             if (drawnCard instanceof PunishCard) {
-                System.out.println("-> Eine Straf-Karte! Sie wird sofort ausgeführt.");
-                drawnCard.activate(player, this.participants, this.scanner);
+                view.displayMessage("-> Es ist eine Straf-Karte! Sie wird sofort ausgeführt.");
+                drawnCard.activate(player, this.participants, this.view);
                 gameDeck.discard(drawnCard);
             } else {
-                System.out.println("-> Diese Karte kommt auf deine Hand.");
                 player.addCardToHand(drawnCard);
             }
         }
 
         // Phase 2: Aktionen ausführen
-        System.out.println("\n--- Phase 2: Aktionen ausführen ---");
-        java.util.Iterator<Player> roundIterator = roundPlayerOrder.iterator();
+        Iterator<Player> roundIterator = roundPlayerOrder.iterator();
         while (roundIterator.hasNext()) {
             Player player = roundIterator.next();
-            // Wenn der Spieler in dieser Runde bereits entfernt wurde (selten, aber sicher ist sicher), überspringen.
             if (!this.participants.contains(player)) continue;
 
-            System.out.println("\n" + player.getName() + " ist am Zug.");
-            List<Card> hand = player.getHand();
-            if (hand.isEmpty()) System.out.println(player.getName() + " hat keine Karten auf der Hand.");
-            else {
-                System.out.println("Deine Hand:");
-                for (int i = 0; i < hand.size(); i++) System.out.println((i + 1) + ": " + hand.get(i));
-            }
-            System.out.println("0: Keine Karte spielen");
-            System.out.println("99: Spiel verlassen");
-            int choice = -1;
-            while (!isValidChoice(choice, hand.size())) {
-                System.out.print("Welche Aktion möchtest du ausführen?: ");
-                try {
-                    String input = scanner.nextLine();
-                    choice = Integer.parseInt(input);
-                    if (!isValidChoice(choice, hand.size())) System.out.println("Ungültige Eingabe.");
-                } catch (NumberFormatException e) { System.out.println("Bitte gib eine gültige Zahl ein."); }
-            }
-            if (choice == 99) {
-                System.out.println(player.getName() + " hat das Spiel verlassen.");
-                roundIterator.remove();
-                this.participants.remove(player);
-                if (isGameOver()) return; // Spiel sofort beenden
-                continue;
-            } else if (choice > 0) {
-                Card cardToPlay = hand.get(choice - 1);
-                System.out.println(player.getName() + " spielt: " + cardToPlay.getTitle());
-                if (hand.remove(cardToPlay)) {
-                    cardToPlay.activate(player, this.participants, this.scanner);
-                    gameDeck.discard(cardToPlay);
-                }
-            } else {
-                System.out.println(player.getName() + " spielt diese Runde keine Karte.");
-            }
+            executePlayerTurn(player);
+
+            if (isGameOver()) return;
         }
 
-        if (isGameOver()) return;
+        view.displayPlayerStatus(this.participants);
+    }
 
-        System.out.println("\n--- Rundenende: Aktueller Stand ---");
-        for (Player p : this.participants) {
-            System.out.println(p.getName() + " | Shots: " + p.getShotsTakenCounter() + " | Schlucke: " + p.getSwallowsTakenCounter());
+    private List<Player> determinePlayerOrder() {
+        view.displayMessage("\n--- Reihenfolge wird ausgewürfelt ---");
+        List<Player> order = new ArrayList<>(this.participants);
+        Map<Player, Integer> rolls = new HashMap<>();
+        Random random = new Random();
+        for (Player player : order) {
+            int roll = random.nextInt(GameConstants.DICE_SIDES) + 1;
+            rolls.put(player, roll);
+            view.displayMessage(player.getName() + " würfelt eine " + roll + ".");
+        }
+        Collections.shuffle(order);
+        order.sort(Comparator.comparingInt(rolls::get));
+        return order;
+    }
+
+    private void executePlayerTurn(Player player) {
+        view.displayPrivateScreenHeader(player);
+        view.displayPlayerHand(player);
+        view.displayMessage("0: Keine Karte spielen");
+        view.displayMessage("99: Spiel verlassen");
+
+        int choice;
+        do {
+            choice = view.askForInteger("Deine Wahl: ");
+        } while (!isValidChoice(choice, player.getHand().size()));
+
+        view.displayPrivateScreenFooter();
+
+        switch (choice) {
+            case GameConstants.CHOICE_QUIT_GAME:
+                view.displayMessage(player.getName() + " hat das Spiel verlassen.");
+                this.participants.remove(player);
+                break;
+            case GameConstants.CHOICE_PASS_TURN:
+                view.displayMessage(player.getName() + " spielt diese Runde keine Karte.");
+                break;
+            default:
+                Card cardToPlay = player.getHand().get(choice - 1);
+                view.displayMessage(player.getName() + " spielt: '" + cardToPlay.getTitle() + "'!");
+                if (player.getHand().remove(cardToPlay)) {
+                    cardToPlay.activate(player, this.participants, this.view);
+                    gameDeck.discard(cardToPlay);
+                }
+                break;
         }
     }
 
     private boolean isGameOver() {
         if (participants.size() < 2) return true;
         for (Player player : participants) {
-            if (player.getShotsTakenCounter() >= 10) return true;
+            if (player.getShotsTakenCounter() >= GameConstants.SHOTS_TO_LOSE) return true;
         }
         return false;
     }
 
-    private void announceWinner() {
-        System.out.println("\n--- Das Spiel ist vorbei! ---");
+    private void announceResult() {
+        view.displayMessage("\n--- Das Spiel ist vorbei! ---");
         if (participants.size() == 1) {
             Player winner = participants.get(0);
-            System.out.println(winner.getName() + " ist der letzte verbleibende Spieler und gewinnt das Spiel!");
-            System.out.println("\n--- Endstatistik für " + winner.getName() + " ---");
-            System.out.println("Getrunkene Shots: " + winner.getShotsTakenCounter());
-            System.out.println("Getrunkene Schlucke: " + winner.getSwallowsTakenCounter());
+            view.displayMessage(winner.getName() + " ist der letzte verbleibende Spieler und gewinnt!");
+            view.displayPlayerStatus(List.of(winner));
         } else {
-            Player loser = null;
-            int maxShots = -1;
-            for (Player player : participants) {
-                if (player.getShotsTakenCounter() > maxShots) {
-                    maxShots = player.getShotsTakenCounter();
-                    loser = player;
-                }
-            }
+            Player loser = participants.stream()
+                    .max(Comparator.comparingInt(Player::getShotsTakenCounter))
+                    .orElse(null);
+
             if (loser != null) {
-                System.out.println(loser.getName() + " hat mit " + loser.getShotsTakenCounter() + " Shots verloren!");
-                System.out.println("\n--- Endstatistik ---");
-                for(Player player : participants){
-                    System.out.println(player.getName() + " | Shots: " + player.getShotsTakenCounter() + " | Schlucke: " + player.getSwallowsTakenCounter());
-                }
+                view.displayMessage(loser.getName() + " hat mit " + loser.getShotsTakenCounter() + " Shots verloren!");
+                view.displayPlayerStatus(this.participants);
             }
         }
     }
 
-    private void displayClassOptions() {
-        System.out.println("Wähle deine Klasse:");
-        System.out.println("1. Warrior");
-        System.out.println("2. Ranger");
-        System.out.println("3. Sorcerer");
-        System.out.println("4. Rogue");
-    }
-
     private boolean isValidChoice(int choice, int handSize) {
-        if (choice == 99 || choice == 0) return true;
-        return choice > 0 && choice <= handSize;
+        return choice == GameConstants.CHOICE_QUIT_GAME ||
+                choice == GameConstants.CHOICE_PASS_TURN ||
+                (choice > 0 && choice <= handSize);
     }
 }

@@ -1,11 +1,14 @@
 package cards;
 
+import game.ConsoleView; // Wichtig: Den richtigen Typ importieren
 import player.Player;
 import java.util.List;
-import java.util.Scanner;
 
+/**
+ * Die abstrakte Basisklasse für alle Karten im Spiel.
+ */
 public abstract class Card {
-    // ... (Felder und Konstruktor bleiben gleich) ...
+
     private final String title;
     private final String description;
     private final Rarity rarity;
@@ -18,20 +21,25 @@ public abstract class Card {
         this.action = action;
     }
 
-    // Die activate-Methode wird erweitert
-    public void activate(Player cardPlayer, List<Player> allPlayers, Scanner scanner) {
+    /**
+     * Führt die Aktion der Karte aus. Diese Methode akzeptiert jetzt die ConsoleView.
+     * @param cardPlayer Der Spieler, der die Karte aktiviert.
+     * @param allPlayers Eine Liste aller Spieler im Spiel.
+     * @param view Die View, um mit dem Benutzer zu interagieren.
+     */
+    public void activate(Player cardPlayer, List<Player> allPlayers, ConsoleView view) {
         if (action != null) {
-            action.execute(cardPlayer, allPlayers, scanner);
+            // Die View wird jetzt korrekt an die Action weitergegeben.
+            action.execute(cardPlayer, allPlayers, view);
         }
     }
 
-    public String getTitle() { return title; }
+    public String getTitle() {
+        return title;
+    }
 
     @Override
     public String toString() {
         return title + " (" + rarity + "): " + description;
-    }
-
-    public void activate(Player player) {
     }
 }
