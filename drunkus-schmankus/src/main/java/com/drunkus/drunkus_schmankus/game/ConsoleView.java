@@ -9,27 +9,32 @@ import java.util.Scanner;
 /**
  * Diese Klasse ist ausschließlich für die Darstellung des Spiels
  * und die Entgegennahme von Benutzereingaben über die Konsole zuständig.
+ * Sie implementiert die IGameView-Schnittstelle.
  */
-public class ConsoleView {
+public class ConsoleView implements IGameView {
 
     private final Scanner scanner = new Scanner(System.in);
 
     // --- Methoden für die Ausgabe ---
 
+    @Override
     public void displayWelcomeMessage() {
         System.out.println("Willkommen zu Drunkus Schmankus!");
     }
 
+    @Override
     public void displayMessage(String message) {
         System.out.println(message);
     }
 
+    @Override
     public void displayEmptyLines(int count) {
         for (int i = 0; i < count; i++) {
             System.out.println();
         }
     }
 
+    @Override
     public void displayPlayerHand(Player player) {
         System.out.println("Deine Hand:");
         List<Card> hand = player.getHand();
@@ -42,6 +47,7 @@ public class ConsoleView {
         }
     }
 
+    @Override
     public void displayPlayerStatus(List<Player> players) {
         System.out.println("\n--- Aktueller Stand ---");
         for (Player p : players) {
@@ -49,12 +55,14 @@ public class ConsoleView {
         }
     }
 
+    @Override
     public void displayPrivateScreenHeader(Player player) {
         displayEmptyLines(4);
         System.out.println("=============================================");
         System.out.println(">>> [ANSICHT FÜR " + player.getName().toUpperCase() + "]");
     }
 
+    @Override
     public void displayPrivateScreenFooter() {
         System.out.println("=============================================");
         displayEmptyLines(4);
@@ -62,6 +70,7 @@ public class ConsoleView {
 
     // --- Methoden für die Eingabe ---
 
+    @Override
     public int askForInteger(String prompt) {
         System.out.print(prompt);
         while (true) {
@@ -76,23 +85,20 @@ public class ConsoleView {
         }
     }
 
+    @Override
     public String askForString(String prompt) {
         System.out.print(prompt);
         return scanner.nextLine();
     }
 
+    @Override
     public boolean askForYesNo(String prompt) {
         System.out.println(prompt);
         String choice = askForString("").toLowerCase();
         return choice.equals("ja") || choice.equals("y");
     }
 
-    /**
-     * Lässt den Benutzer einen Spieler aus einer Liste auswählen.
-     * @param players Die Liste der möglichen Ziele.
-     * @param prompt Die Frage, die dem Benutzer gestellt wird.
-     * @return Der ausgewählte Spieler.
-     */
+    @Override
     public Player askForPlayerSelection(List<Player> players, String prompt) {
         displayMessage(prompt);
         for (int i = 0; i < players.size(); i++) {
@@ -105,13 +111,7 @@ public class ConsoleView {
         return players.get(choice - 1);
     }
 
-    /**
-     * Fragt nach einer Zahl innerhalb eines bestimmten Bereichs.
-     * @param prompt Die Frage an den Benutzer.
-     * @param min Der erlaubte Mindestwert.
-     * @param max Der erlaubte Höchstwert.
-     * @return Die gültige Zahl.
-     */
+    @Override
     public int askForIntegerInRange(String prompt, int min, int max) {
         int value;
         do {

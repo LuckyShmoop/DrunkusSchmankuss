@@ -1,7 +1,7 @@
 package com.drunkus.drunkus_schmankus.cards.actions;
 
 import com.drunkus.drunkus_schmankus.cards.ICardAction;
-import com.drunkus.drunkus_schmankus.game.ConsoleView;
+import com.drunkus.drunkus_schmankus.game.IGameView;
 import com.drunkus.drunkus_schmankus.player.Player;
 
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ public abstract class AbstractDistributeDrinkAction implements ICardAction {
      * Diese 'execute'-Methode ist final und enthält die gemeinsame Logik.
      */
     @Override
-    public final void execute(Player cardPlayer, List<Player> allPlayers, ConsoleView view) {
+    public final void execute(Player cardPlayer, List<Player> allPlayers, IGameView view) {
         List<Player> targets = new ArrayList<>(allPlayers);
         targets.remove(cardPlayer);
 
@@ -57,7 +57,7 @@ public abstract class AbstractDistributeDrinkAction implements ICardAction {
      * Kind-Klassen müssen implementieren, was genau passiert, wenn ein
      * Spieler das Getränk erhält (z.B. takeShot vs takeSwallow und EXP-Berechnung).
      */
-    protected abstract void applyEffect(Player target, int amount, ConsoleView view);
+    protected abstract void applyEffect(Player target, int amount, IGameView view);
 
     /**
      * Kind-Klassen müssen den Namen des Getränks (Singular/Plural) bereitstellen.

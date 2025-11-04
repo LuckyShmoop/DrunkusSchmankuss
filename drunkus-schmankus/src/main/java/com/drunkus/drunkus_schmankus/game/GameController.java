@@ -2,92 +2,132 @@ package com.drunkus.drunkus_schmankus.game;
 
 import com.drunkus.drunkus_schmankus.cards.*;
 import com.drunkus.drunkus_schmankus.player.*;
-import java.util.*;
-import java.util.function.Function;
+import com.drunkus.drunkus_schmankus.websocket.GameWebSocketHandler;
 
-/**
- * Das Gehirn des Spiels. Diese Klasse enthält die gesamte Spiellogik und den Ablauf,
- * ist aber komplett von der Benutzeroberfläche (View) entkoppelt.
- */
+import java.io.IOException;
+import java.util.*;
+import java.util.function.BiFunction; // KORRIGIERT: (war Function)
+
 public class GameController {
-    // Der Controller kennt nur noch die Logik-Komponenten
+
+    // WIR SPEICHERN DEN AKTUELLEN ZUSTAND DES SPIELS
+    private enum GameState {
+        WAITING_FOR_PLAYERS,
+        DRAWING_CARDS,
+        WAITING_FOR_ACTION,
+        GAME_OVER
+    }
+
     private List<Player> participants = new ArrayList<>();
     private Deck gameDeck;
     private int roundCounter = 0;
+    private GameState currentState;
+    private Player activePlayer;
 
-    // ... und die View für die Darstellung.
-    private final ConsoleView view;
+    private final String gameId;
+    private final GameWebSocketHandler webSocketHandler;
 
-    private static final Map<String, Function<String, Player>> CLASS_CREATORS = Map.of(
-            "1", Warrior::new, "2", Ranger::new,
-            "3", Sorcerer::new, "4", Rogue::new
+    // KORRIGIERT: Verwendet jetzt BiFunction (nimmt 2 Strings, gibt Player zurück)
+    private static final Map<String, BiFunction<String, String, Player>> CLASS_CREATORS = Map.of(
+            "1", Warrior::new,
+            "2", Ranger::new,
+            "3", Sorcerer::new,
+            "4", Rogue::new
     );
 
-    // Die View wird von außen übergeben (Dependency Injection)
-    public GameController(ConsoleView view) {
-        this.view = view;
-    }
-
-    /**
-     * Die Hauptmethode, die das Spiel steuert und Wiederholungen ermöglicht.
-     */
-    public void run() {
-        boolean playAgain;
-        do {
-            resetGame();
-            setupGame();
-
-            while (!isGameOver()) {
-                processRound();
-                if (isGameOver()) break;
-            }
-
-            announceResult();
-            playAgain = view.askForYesNo("\nMöchtet ihr eine neue Runde spielen? (ja/nein)");
-        } while (playAgain);
-
-        view.displayMessage("\nDanke fürs Spielen! Bis zum nächsten Mal.");
-    }
-
-    /**
-     * Setzt die Spielvariablen für eine neue Partie zurück.
-     */
-    private void resetGame() {
-        this.participants.clear();
-        this.roundCounter = 0;
-    }
-
-    /**
-     * Führt das Setup für eine neue Partie durch (Spielererstellung, Starthände).
-     */
-    private void setupGame() {
+    public GameController(String gameId, GameWebSocketHandler webSocketHandler) {
+        this.gameId = gameId;
+        this.webSocketHandler = webSocketHandler;
+        this.currentState = GameState.WAITING_FOR_PLAYERS;
         this.gameDeck = new Deck();
-        view.displayMessage("\n--- Neues Spiel: Spieler erstellen ---");
-        int amountPlayer = view.askForInteger("Wie viele Spieler seid ihr?: ");
 
-        for (int i = 1; i <= amountPlayer; i++) {
-            String name = view.askForString("\nSpieler " + i + ": Bitte Namen eingeben: ");
-            view.displayMessage("Wähle deine Klasse:\n1. Warrior\n2. Ranger\n3. Sorcerer\n4. Rogue");
+        broadcast("Spiel " + gameId + " erstellt. Warten auf Spieler...");
+    }
 
-            Player newPlayer = null;
-            while (newPlayer == null) {
-                String choice = view.askForString("Deine Wahl (1-4): ");
-                Function<String, Player> creator = CLASS_CREATORS.get(choice);
-                if (creator != null) {
-                    newPlayer = creator.apply(name);
-                } else {
-                    view.displayMessage("Ungültige Wahl.");
-                }
-            }
+    // --- ÖFFENTLICHE METHODEN (von außen aufgerufen) ---
+
+    public void addPlayer(String sessionId, String name, String classChoice) {
+        if (currentState != GameState.WAITING_FOR_PLAYERS) {
+            sendMessageToPlayer(sessionId, "Fehler: Spiel läuft bereits.");
+            return;
+        }
+
+        // KORRIGIERT: Verwendet jetzt BiFunction
+        BiFunction<String, String, Player> creator = CLASS_CREATORS.get(classChoice);
+        if (creator != null) {
+            // KORRIGIERT: creator.apply ruft jetzt (name, sessionId) auf
+            Player newPlayer = creator.apply(name, sessionId);
             participants.add(newPlayer);
-            view.displayMessage(newPlayer.getName() + " ist beigetreten als " + newPlayer.getClass().getSimpleName() + "!");
 
+            // Startkarten ziehen
             for (int j = 0; j < GameConstants.START_HAND_SIZE; j++) {
                 drawStartCardFor(newPlayer);
             }
+
+            broadcast(name + " ist dem Spiel beigetreten als " + newPlayer.getClass().getSimpleName());
+            // TODO: Sende dem Spieler seine private Hand
+            // sendMessageToPlayer(sessionId, "{\"type\": \"HAND_UPDATE\", \"hand\": " + newPlayer.getHand().toString() + "}");
+
+        } else {
+            sendMessageToPlayer(sessionId, "Fehler: Ungültige Klasse.");
         }
     }
 
+    public void startGame(String starterSessionId) {
+        // TODO: Prüfen, ob der starterSessionId der Ersteller der Lobby ist
+        if (currentState != GameState.WAITING_FOR_PLAYERS || participants.size() < 1) { // Testen mit 1 Spieler
+            sendMessageToPlayer(starterSessionId, "Fehler: Nicht genügend Spieler.");
+            return;
+        }
+
+        broadcast("Das Spiel beginnt!");
+        startNewRound();
+    }
+
+    public void handlePlayerAction(String sessionId, String action) {
+        // TODO: JSON-Aktion parsen (z.B. "PLAY_CARD:3" oder "QUIT")
+
+        Player player = participants.stream()
+                .filter(p -> p.getSessionId().equals(sessionId))
+                .findFirst()
+                .orElse(null);
+
+        if (player == null || player != activePlayer) {
+            sendMessageToPlayer(sessionId, "Fehler: Du bist nicht am Zug.");
+            return;
+        }
+
+        // ... Logik für die Aktion ...
+        // z.B. if (action.equals("QUIT")) { ... }
+
+        // Nach der Aktion: Nächsten Spieler bestimmen oder Runde beenden
+        // ...
+
+        // Nächsten Spieler an die Reihe kommen lassen
+        // nextPlayerTurn();
+    }
+
+    // --- PRIVATE SPIEL-LOGIK (intern) ---
+
+    private void startNewRound() {
+        roundCounter++;
+        broadcast("======================================");
+        broadcast("Runde " + roundCounter + " startet!");
+
+        // TODO: Würfellogik implementieren (determinePlayerOrder)
+
+        // TODO: Karten-Zieh-Phase (executeDrawingPhase)
+        // ...
+
+        // Starte den ersten Zug
+        activePlayer = participants.get(0);
+        currentState = GameState.WAITING_FOR_ACTION;
+        broadcast("Es ist " + activePlayer.getName() + " am Zug.");
+        // TODO: Sende privates Update an den aktiven Spieler
+        // sendMessageToPlayer(activePlayer.getSessionId(), "{\"type\": \"YOUR_TURN\", \"hand\": " + activePlayer.getHand() + "}");
+    }
+
+    // KORRIGIERT: Code wieder eingefügt
     private void drawStartCardFor(Player player) {
         Card drawnCard;
         do {
@@ -99,95 +139,7 @@ public class GameController {
         player.addCardToHand(drawnCard);
     }
 
-    /**
-     * Verarbeitet eine komplette Spielrunde.
-     */
-    public void processRound() {
-        roundCounter++;
-        view.displayMessage("\n=============================================");
-        view.displayMessage("--- Runde " + roundCounter + " startet! ---");
-        view.displayMessage("=============================================");
-
-        List<Player> roundPlayerOrder = determinePlayerOrder();
-
-        // Phase 1: Karten ziehen
-        for (Player player : roundPlayerOrder) {
-            view.displayMessage("\n" + player.getName() + " zieht eine Karte.");
-            Card drawnCard = gameDeck.drawCard();
-            if (drawnCard == null) return;
-
-            view.displayMessage(">>> [Private Info für " + player.getName() + "] Du hast gezogen: " + drawnCard);
-
-            if (drawnCard instanceof PunishCard) {
-                view.displayMessage("-> Es ist eine Straf-Karte! Sie wird sofort ausgeführt.");
-                drawnCard.activate(player, this.participants, this.view);
-                gameDeck.discard(drawnCard);
-            } else {
-                player.addCardToHand(drawnCard);
-            }
-        }
-
-        // Phase 2: Aktionen ausführen
-        Iterator<Player> roundIterator = roundPlayerOrder.iterator();
-        while (roundIterator.hasNext()) {
-            Player player = roundIterator.next();
-            if (!this.participants.contains(player)) continue;
-
-            executePlayerTurn(player);
-
-            if (isGameOver()) return;
-        }
-
-        view.displayPlayerStatus(this.participants);
-    }
-
-    private List<Player> determinePlayerOrder() {
-        view.displayMessage("\n--- Reihenfolge wird ausgewürfelt ---");
-        List<Player> order = new ArrayList<>(this.participants);
-        Map<Player, Integer> rolls = new HashMap<>();
-        Random random = new Random();
-        for (Player player : order) {
-            int roll = random.nextInt(GameConstants.DICE_SIDES) + 1;
-            rolls.put(player, roll);
-            view.displayMessage(player.getName() + " würfelt eine " + roll + ".");
-        }
-        Collections.shuffle(order);
-        order.sort(Comparator.comparingInt(rolls::get));
-        return order;
-    }
-
-    private void executePlayerTurn(Player player) {
-        view.displayPrivateScreenHeader(player);
-        view.displayPlayerHand(player);
-        view.displayMessage("0: Keine Karte spielen");
-        view.displayMessage("99: Spiel verlassen");
-
-        int choice;
-        do {
-            choice = view.askForInteger("Deine Wahl: ");
-        } while (!isValidChoice(choice, player.getHand().size()));
-
-        view.displayPrivateScreenFooter();
-
-        switch (choice) {
-            case GameConstants.CHOICE_QUIT_GAME:
-                view.displayMessage(player.getName() + " hat das Spiel verlassen.");
-                this.participants.remove(player);
-                break;
-            case GameConstants.CHOICE_PASS_TURN:
-                view.displayMessage(player.getName() + " spielt diese Runde keine Karte.");
-                break;
-            default:
-                Card cardToPlay = player.getHand().get(choice - 1);
-                view.displayMessage(player.getName() + " spielt: '" + cardToPlay.getTitle() + "'!");
-                if (player.getHand().remove(cardToPlay)) {
-                    cardToPlay.activate(player, this.participants, this.view);
-                    gameDeck.discard(cardToPlay);
-                }
-                break;
-        }
-    }
-
+    // KORRIGIERT: Code wieder eingefügt
     private boolean isGameOver() {
         if (participants.size() < 2) return true;
         for (Player player : participants) {
@@ -196,27 +148,30 @@ public class GameController {
         return false;
     }
 
-    private void announceResult() {
-        view.displayMessage("\n--- Das Spiel ist vorbei! ---");
-        if (participants.size() == 1) {
-            Player winner = participants.get(0);
-            view.displayMessage(winner.getName() + " ist der letzte verbleibende Spieler und gewinnt!");
-            view.displayPlayerStatus(List.of(winner));
-        } else {
-            Player loser = participants.stream()
-                    .max(Comparator.comparingInt(Player::getShotsTakenCounter))
-                    .orElse(null);
 
-            if (loser != null) {
-                view.displayMessage(loser.getName() + " hat mit " + loser.getShotsTakenCounter() + " Shots verloren!");
-                view.displayPlayerStatus(this.participants);
-            }
+    // --- NEUE SENDE-METHODEN (ehemals View) ---
+
+    /**
+     * Sendet eine Nachricht an ALLE Spieler in diesem Spiel.
+     */
+    private void broadcast(String message) {
+        try {
+            // Wir senden die Nachricht und die Liste unserer Teilnehmer
+            webSocketHandler.broadcastToGame(message, this.participants);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    } // KORRIGIERT: Fehlende Klammer war hier
+
+    /**
+     * Sendet eine private Nachricht an einen bestimmten Spieler.
+     */
+    private void sendMessageToPlayer(String sessionId, String message) {
+        try {
+            webSocketHandler.sendMessageToPlayer(sessionId, message);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
-    private boolean isValidChoice(int choice, int handSize) {
-        return choice == GameConstants.CHOICE_QUIT_GAME ||
-                choice == GameConstants.CHOICE_PASS_TURN ||
-                (choice > 0 && choice <= handSize);
-    }
 }

@@ -1,6 +1,6 @@
 package com.drunkus.drunkus_schmankus.cards;
 
-import com.drunkus.drunkus_schmankus.game.ConsoleView; // Wichtig: Den richtigen Typ importieren
+import com.drunkus.drunkus_schmankus.game.IGameView;
 import com.drunkus.drunkus_schmankus.player.Player;
 import java.util.List;
 
@@ -27,7 +27,7 @@ public abstract class Card {
      * @param allPlayers Eine Liste aller Spieler im Spiel.
      * @param view Die View, um mit dem Benutzer zu interagieren.
      */
-    public void activate(Player cardPlayer, List<Player> allPlayers, ConsoleView view) {
+    public void activate(Player cardPlayer, List<Player> allPlayers, IGameView view) {
         if (action != null) {
             // Die View wird jetzt korrekt an die Action weitergegeben.
             action.execute(cardPlayer, allPlayers, view);

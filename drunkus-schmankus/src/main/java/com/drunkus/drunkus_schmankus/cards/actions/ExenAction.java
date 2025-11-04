@@ -1,7 +1,7 @@
 package com.drunkus.drunkus_schmankus.cards.actions;
 
 import com.drunkus.drunkus_schmankus.cards.ICardAction;
-import com.drunkus.drunkus_schmankus.game.ConsoleView;
+import com.drunkus.drunkus_schmankus.game.IGameView;
 import com.drunkus.drunkus_schmankus.player.Player;
 import java.util.List;
 
@@ -12,7 +12,7 @@ import java.util.List;
 public class ExenAction implements ICardAction {
 
     @Override
-    public void execute(Player cardPlayer, List<Player> allPlayers, ConsoleView view) {
+    public void execute(Player cardPlayer, List<Player> allPlayers, IGameView view) {
         view.displayMessage(cardPlayer.getName() + " muss sein Getränk exen!");
 
         // 1. Füllstand abfragen (0-100%)

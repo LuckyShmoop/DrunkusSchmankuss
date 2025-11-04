@@ -5,10 +5,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class Player {
+    private final String sessionId;
     private String name;
     private int swallowsTakenCounter = 0;
     private int shotsTakenCounter = 0;
     private final List<Card> hand = new ArrayList<>();
+
 
     // --- NEUE LEVEL-LOGIK ---
     private int level = 0;
@@ -31,9 +33,11 @@ public abstract class Player {
     public static final int BASE_EXP_FOR_EXEN = 20; // Ein volles Glas = 20 Schlucke EXP
     // -------------------------
 
-    public Player(String name) {
+    public Player(String name, String sessionId) {
         this.name = name;
+        this.sessionId = sessionId;
     }
+
 
     // --- Zähler-Methoden ---
     public void takeShot(int amountOfShots) {
@@ -75,6 +79,7 @@ public abstract class Player {
     public int getSwallowsTakenCounter() { return swallowsTakenCounter; }
     public List<Card> getHand() { return hand; }
     public int getLevel() { return this.level; } // Neuer Getter
+    public String getSessionId() { return sessionId; }
 
     // --- Hand-Methoden ---
     public void addCardToHand(Card card) {
