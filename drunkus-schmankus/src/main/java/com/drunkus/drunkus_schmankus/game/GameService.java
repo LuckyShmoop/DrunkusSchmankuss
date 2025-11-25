@@ -1,6 +1,7 @@
 package com.drunkus.drunkus_schmankus.game;
 
 import com.drunkus.drunkus_schmankus.websocket.GameWebSocketHandler;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.util.Map;
@@ -13,6 +14,7 @@ public class GameService {
     private final Map<String, GameController> activeGames = new ConcurrentHashMap<>();
 
     @Autowired
+    @Lazy
     private GameWebSocketHandler webSocketHandler;
 
     // (Du kannst einen leeren Konstruktor hinzufügen oder ihn ganz weglassen)
